@@ -3,8 +3,6 @@ import time
 import threading
 import math
 
-speedOffset = 1  # Offset per la velocità (per rendere più visibile il movimento)
-
 class World:
     gravAcc = 9.81
     METERS_TO_PIXELS = None  # pixel per metro
