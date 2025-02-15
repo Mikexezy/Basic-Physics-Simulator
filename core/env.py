@@ -7,11 +7,43 @@ class World:
     gravAcc = 9.81
     METERS_TO_PIXELS = None  # pixel per metro
     
-    def __init__(self, dimX, dimY, meters=5000):
-        self.dimX = dimX
-        self.dimY = dimY
-        World.METERS_TO_PIXELS = dimX / meters  # 1000 metri = larghezza schermo
-        self.world = [[0 for _ in range(dimX)] for _ in range(dimY)]
+    def __init__(self, meters=5000):
+        pygame.init()
+        
+        screen_width, screen_height = pygame.display.Info().current_w, pygame.display.Info().current_h
+        self.screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
+        self.clock = pygame.time.Clock()
+        
+        self.timekeeper = TimeKeeper()
+        
+        self.dimX = screen_width
+        self.dimY = screen_height
+        World.METERS_TO_PIXELS = screen_width / meters  # 1000 metri = larghezza schermo
+        self.world = [[0 for _ in range(screen_width)] for _ in range(screen_height)]
+        
+    def start(self):
+        self.timekeeper.start()
+    
+        running = True
+        while running:
+            delta_time = self.timekeeper.delta_time
+            self.timekeeper.delta_time = 0
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+            
+            self.update(delta_time)
+            self.render(self.screen)
+            
+            pygame.display.flip()
+            
+            self.clock.tick(60)
+
+        pygame.quit()
 
     def set_entities(self, entities):
         self.entities = entities
@@ -43,10 +75,10 @@ class World:
 
         
 class Entity:        
-    def __init__(self, x=250, y=250, mass=0, drag_coefficient=0, trasversal_area=0):
+    def __init__(self, x=250, y=250, mass=0, drag_coefficient=0, trasversal_area=0, world=None):
         # x e y ora sono in metri
         self.x = x / World.METERS_TO_PIXELS if World.METERS_TO_PIXELS else x
-        self.y = y / World.METERS_TO_PIXELS if World.METERS_TO_PIXELS else y
+        self.y = (world.dimY -  y) / World.METERS_TO_PIXELS if World.METERS_TO_PIXELS else y
         self.mass = mass
         self.velocity_x = 0 
         self.velocity_y = 0
