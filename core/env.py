@@ -152,6 +152,7 @@ class AirDrag(Force):
         entity.addForce(drag, duration=0)
         
         print(f"Air drag force: magnitude = {self.magnitude:.2f}N, alpha = {self.alpha:.2f}° \n")
+      
         
 # TODO: Renderlo molto più preciso
 class TimeKeeper:
