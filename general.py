@@ -3,38 +3,52 @@ import time
 import threading
 import math
 
-speedOffset = 100  # Offset per la velocità (per rendere più visibile il movimento)
+speedOffset = 1  # Offset per la velocità (per rendere più visibile il movimento)
 
 class World:
     gravAcc = 9.81
+    METERS_TO_PIXELS = None  # pixel per metro
     
-    def __init__(self, dimX, dimY, entities):
+    def __init__(self, dimX, dimY, meters=5000):
         self.dimX = dimX
         self.dimY = dimY
+        World.METERS_TO_PIXELS = dimX / meters  # 1000 metri = larghezza schermo
         self.world = [[0 for _ in range(dimX)] for _ in range(dimY)]
-        self.entities = entities
 
+    def set_entities(self, entities):
+        self.entities = entities
+        
     def render(self, screen):
         for entity in self.entities:
-            pygame.draw.rect(screen, (255, 0, 0), (entity.x, entity.y, 5, 5))
+            # Converti le coordinate da metri a pixel
+            pixel_x = entity.x * World.METERS_TO_PIXELS
+            pixel_y = entity.y * World.METERS_TO_PIXELS
+            pygame.draw.circle(screen, (255, 0, 0), (pixel_x, pixel_y), 5)
 
         
 class Entity:        
-    def __init__(self, x=250, y=250, mass=0):
-        self.x = x
-        self.y = y
+    def __init__(self, x=250, y=250, mass=0, drag_coefficient=0, trasversal_area=0):
+        # x e y ora sono in metri
+        self.x = x / World.METERS_TO_PIXELS if World.METERS_TO_PIXELS else x
+        self.y = y / World.METERS_TO_PIXELS if World.METERS_TO_PIXELS else y
         self.mass = mass
         self.velocity_x = 0 
         self.velocity_y = 0
+        self.drag_coefficient = drag_coefficient
+        self.trasversal_area = trasversal_area
         self.forces = []
     
-    def addForce(self, force, name="general", duration=0):
+    def addForce(self, force, duration=0):
         if duration > 0:
             force.start_time = time.time()
             force.duration = duration
         else:
             force.start_time = 0
             force.duration = float('inf')
+            
+        for f in self.forces:
+            if f.name == force.name:
+                self.forces.remove(f)
         self.forces.append(force)
     
     def update(self, delta_time, bounds):
@@ -55,24 +69,42 @@ class Entity:
         # Calcoliamo la velocità (v = u + at)
         self.velocity_x += acceleration_x * delta_time
         self.velocity_y += acceleration_y * delta_time
-
-        # Aggiorniamo la posizione (x = x0 + vt)
-        self.x += (self.velocity_x * delta_time) * speedOffset
-        self.y += (self.velocity_y * delta_time) * speedOffset
         
-        # Se esce dalla finestra gli spacco le gambe
-        self.x = max(0, min(self.x, bounds[0] - 5))
-        self.y = max(0, min(self.y, bounds[1] - 5))
+        self.alpha = math.fabs(math.degrees(math.atan2(self.velocity_y, self.velocity_x)))
 
-        print(f"Entity position: x = {self.x:.2f}, y = {self.y:.2f}, velocity_x = {self.velocity_x:.2f}, velocity_y = {self.velocity_y:.2f}")
+        # Aggiorniamo la posizione (x = x0 + vt) - ora in metri
+        self.x += (self.velocity_x * delta_time)
+        self.y += (self.velocity_y * delta_time)
+        
+        # Converti i bounds da pixel a metri per il controllo
+        bounds_meters = (bounds[0] / World.METERS_TO_PIXELS, bounds[1] / World.METERS_TO_PIXELS)
+        self.x = max(0, min(self.x, bounds_meters[0]))
+        self.y = max(0, min(self.y, bounds_meters[1]))
+
+        print(f"Entity position: x = {self.x:.2f}m, y = {self.y:.2f}m, velocity_x = {self.velocity_x:.2f}m/s, velocity_y = {self.velocity_y:.2f}m/s")
 
 
 class Force:
-    def __init__(self, magnitude=0, alpha=0):
+    def __init__(self, magnitude=0, alpha=0, name="general"):
         self.magnitude = magnitude  # Modulo
         self.alpha = -alpha  # segno - perchè viene fatta prima una conversione in radianti che inverte la nostra concezione di angoli (90° in radianti è verso il basso mentre noi 90° lo vediamo verso l'alto)
-
-
+        self.name = name
+        
+        
+class AirDrag(Force):
+    def __init__(self, air_density=1.225):
+        self.air_density = air_density
+    
+    def update(self, entity):
+        self.velocity = math.sqrt(entity.velocity_x**2 + entity.velocity_y**2)
+        self.magnitude = 0.5 * entity.drag_coefficient * self.air_density * entity.trasversal_area * self.velocity**2
+        self.alpha = (entity.alpha + 180) % 360
+        
+        drag = Force(magnitude=self.magnitude, alpha=math.radians(self.alpha), name="air_drag")
+        entity.addForce(drag, duration=0)
+        
+        print(f"Air drag force: magnitude = {self.magnitude:.2f}N, alpha = {self.alpha:.2f}° \n")
+        
 class TimeKeeper:
     def __init__(self):
         self.current_time = 0

@@ -11,17 +11,15 @@ def main():
     
     timekeeper = TimeKeeper()
     
-    world = World(dimX=screen.get_size()[0], dimY=screen.get_size()[1], meters=100)
-    entities = [Entity(x=(10 * World.METERS_TO_PIXELS), y=(screen.get_size()[1] - (1 * World.METERS_TO_PIXELS)), mass=2, trasversal_area=0.1, drag_coefficient=2)]
+    world = World(dimX=screen.get_size()[0], dimY=screen.get_size()[1], meters=1000)
+    entities = [Entity(x=(10 * World.METERS_TO_PIXELS), y=(screen.get_size()[1] - (500 * World.METERS_TO_PIXELS)), mass=2, trasversal_area=0.2, drag_coefficient=0.1)]
     world.set_entities(entities)
     
-    esplosione = Force(magnitude=2000, alpha=math.radians(25), name="sparo")
     gravity = Force(magnitude=(entities[0].mass * World.gravAcc), alpha=math.radians(270), name="gravity")
-    
+    AirDragForce = AirDrag()
     # non sto considerando la resistenza dell'aria e molte altre forze quindi il proiettile non perderà mai velocità orrizzontale
     entities[0].addForce(gravity, duration=0)
-    entities[0].addForce(esplosione, duration=0.05)
-    AirDragForce = AirDrag()
+    entities[0].velocity_x = 200
     
     timekeeper.start()
     
@@ -40,7 +38,7 @@ def main():
         for entity in entities:
             entity.update(delta_time, (screen_width, screen_height))
             AirDragForce.update(entity)
-        
+            
         screen.fill((0, 0, 0))
         world.render(screen)
         pygame.display.flip()
