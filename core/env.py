@@ -153,6 +153,7 @@ class AirDrag(Force):
         
         print(f"Air drag force: magnitude = {self.magnitude:.2f}N, alpha = {self.alpha:.2f}° \n")
         
+# TODO: Renderlo molto più preciso
 class TimeKeeper:
     def __init__(self):
         self.current_time = 0
