@@ -18,7 +18,25 @@ class World:
     def set_entities(self, entities):
         self.entities = entities
         
+    def setGravity(self, active=True):
+        if active:
+            for entity in self.entities:
+                gravity = Force(magnitude=(entity.mass * self.gravAcc), alpha=math.radians(270), name="gravity")
+                entity.addForce(gravity, duration=0)
+    
+    def setAirDrag(self, active=True):
+        self.airDragActive = active
+        self.airDragForce = AirDrag()
+        
+    def update(self, delta_time):
+        for entity in self.entities:
+            entity.update(delta_time, (self.dimX, self.dimY))
+            
+            if self.airDragActive:
+                self.airDragForce.update(entity)
+        
     def render(self, screen):
+        screen.fill((0, 0, 0))
         for entity in self.entities:
             # Converti le coordinate da metri a pixel
             pixel_x = entity.x * World.METERS_TO_PIXELS
