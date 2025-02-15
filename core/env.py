@@ -124,7 +124,6 @@ class Entity:
         self.x += (self.velocity_x * delta_time)
         self.y += (self.velocity_y * delta_time)
         
-        # Converti i bounds da pixel a metri per il controllo
         bounds_meters = (bounds[0] / World.METERS_TO_PIXELS, bounds[1] / World.METERS_TO_PIXELS)
         self.x = max(0, min(self.x, bounds_meters[0]))
         self.y = max(0, min(self.y, bounds_meters[1]))

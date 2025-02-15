@@ -6,5 +6,5 @@ python example/moto_parabolico.py
 ```
 or
 ```bash
-python3 example/moto_parabolico.py
+python example/sgancio_rifornimento_aereo.py
 ```
