@@ -13,7 +13,6 @@ world.setAirDrag(True)
     
 esplosione = Force(magnitude=2000, alpha=math.radians(25), name="sparo")
     
-# non sto considerando la resistenza dell'aria e molte altre forze quindi il proiettile non perderà mai velocità orrizzontale
 entities[0].addForce(esplosione, duration=0.05)
     
 world.start()
