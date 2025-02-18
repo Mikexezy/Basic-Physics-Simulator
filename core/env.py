@@ -3,6 +3,7 @@ import time
 import threading
 import math
 
+'''
 class World:
     gravAcc = 9.81
     METERS_TO_PIXELS = None  # pixel per metro
@@ -26,18 +27,18 @@ class World:
     
         running = True
         while running:
-            delta_time = self.timekeeper.delta_time
-            self.timekeeper.delta_time = 0
-            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
+                        
             
+            delta_time = self.timekeeper.delta_time
             self.update(delta_time)
             self.render(self.screen)
+            self.timekeeper.delta_time = 0
             
             pygame.display.flip()
             
@@ -71,7 +72,7 @@ class World:
             # Converti le coordinate da metri a pixel
             pixel_x = entity.x * World.METERS_TO_PIXELS
             pixel_y = entity.y * World.METERS_TO_PIXELS
-            pygame.draw.circle(screen, (255, 0, 0), (pixel_x, pixel_y), 5)
+            pygame.draw.circle(screen, (255, 0, 0), (pixel_x, pixel_y), 0.25 * World.METERS_TO_PIXELS)
 
         
 class Entity:        
@@ -123,13 +124,14 @@ class Entity:
         # Aggiorniamo la posizione (x = x0 + vt) - ora in metri
         self.x += (self.velocity_x * delta_time)
         self.y += (self.velocity_y * delta_time)
+        print(self.velocity_y,  delta_time)
         
         bounds_meters = (bounds[0] / World.METERS_TO_PIXELS, bounds[1] / World.METERS_TO_PIXELS)
         self.x = max(0, min(self.x, bounds_meters[0]))
         self.y = max(0, min(self.y, bounds_meters[1]))
 
         print(f"Entity position: x = {self.x:.2f}m, y = {self.y:.2f}m, velocity_x = {self.velocity_x:.2f}m/s, velocity_y = {self.velocity_y:.2f}m/s")
-
+            
 
 class Force:
     def __init__(self, magnitude=0, alpha=0, name="general"):
@@ -151,7 +153,6 @@ class AirDrag(Force):
         entity.addForce(drag, duration=0)
         
         print(f"Air drag force: magnitude = {self.magnitude:.2f}N, alpha = {self.alpha:.2f}° \n")
-      
         
 # TODO: Renderlo molto più preciso
 class TimeKeeper:
@@ -169,7 +170,7 @@ class TimeKeeper:
             self.delta_time = current - self.last_time
             self.last_time = current
             self.current_time += self.delta_time
-            time.sleep(0.001)
+            time.sleep(0.016)
     
     def start(self):
         self.thread.start()
@@ -177,3 +178,127 @@ class TimeKeeper:
     def stop(self):
         self.running = False
         self.thread.join()
+'''
+
+#TODO: rifare tutto con più ordine
+
+types = ["cube", "parallelepiped", "sphere"]
+
+class World:
+    GRAV = 9.81
+    
+    def __init__(self, dimensions=(1000, 1000)):
+        pygame.init()
+        self.clock = pygame.time.Clock()
+        self.screen = pygame.display.set_mode((800, 600))
+        
+        self.dimensions = dimensions
+        self.PTM = ((self.screen.get_width() / dimensions[0]), (self.screen.get_height() / dimensions[1]))
+        
+        
+    def addEntity(self, entity):
+        self.entities.append(entity)
+        
+        
+    def setGravity(self, active=True):
+        if active:
+            for entity in self.entities:
+                gravity = Force(magnitude=entity.weightForce, alpha=270, name="gravity")
+                entity.addForce(gravity)
+    
+                
+    #TODO finire la funzione che aggiunge un thread ad ogni entità per il calcolo della forza di attrito dell'aria
+    def setAirDrag(self, active=True):
+        self.airdrag = active
+        
+        if active:
+            for entity in self.entities:
+                airDragCalculator = threading.Thread(target=calculateAirDrag, args=(entity,))
+                entity.thread.append()
+                entity.thread[0].daemon = True
+    
+    
+    
+
+
+    def render(self):
+        self.screen.fill((0, 0, 0))
+        for entity in self.entities:
+            if entity.topology == "sphere":
+                pygame.draw.circle(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1]), entity.dimensions[2])
+            else:
+                pygame.draw.rect(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0], entity.dimensions[1]))
+            
+        
+        
+class Entity:
+    #l'unità di misura per la lunghezza => Metro
+    
+    # dimensions = larghezza, altezza, lunghezza o raggio
+    # position = x da sinistra, y dal basso
+    
+    def __init__(self, topology="cube", dimensions=(1,1,1), mass=1, drag_coefficient=0.1, position=(1, 1)):
+        self.topology = topology
+        
+        self.mass = mass
+        
+        self.dimensions = dimensions
+        self.volume = self.getVolume(topology)
+        self.density = self.mass / self.volume
+        
+        self.position = position     
+        self.velX = 0
+        self.velY = 0   
+        self.direction = math.atan2(self.velY, self.velX)
+        
+        self.forces = []
+        
+        self.thread = []
+        
+        
+    def addForce(self, force):
+        for f in self.forces:
+            
+            if f.name == force.name and (f.duration != force.duration or f.magnitude != force.magnitude or f.direction != force.direction): 
+                self.forces.remove(f)
+                self.forces.append(force)
+                
+            elif f.name != force.name:    
+                self.forces.append(force)
+                
+            else:
+                print("Force already exist")
+                
+            
+    def calculateForce(self):
+        pass
+                            
+        
+        
+class Force:
+    def __init__(self, magnitude=100, direction=0, name="general"):
+        self.magnitude = magnitude
+        self.direction = direction
+        self.name = name
+        
+        
+    def getComponents(self):
+        fx = self.magnitude * math.cos(self.direction)
+        fy = self.magnitude * math.sin(self.direction)
+        
+        return fx, fy
+    
+    
+        
+        
+def getVolume(topology, dimensions):
+    if topology == "cube" or topology == "parallelepiped":
+        return (dimensions[0] * dimensions[2]) * dimensions[1]
+    elif topology == "sphere":
+        return (4/3) * math.pi * dimensions[2]**3
+    else:
+        print("Invalid topology")
+        return 0
+    
+def calculateAirDrag(self, entity):
+        pass
