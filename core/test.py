@@ -7,7 +7,9 @@ mike = Entity("cube", dimensions=(5, 5, 5), position=(10, 10), mass=10)
 world.addEntity(plane)
 world.addEntity(mike)
 
+world.setCollision(mike, plane)
+
 world.setGravity(True)
 world.setAirDrag(True)
 
-world.start()
+world.start()               

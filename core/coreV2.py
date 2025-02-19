@@ -22,10 +22,12 @@ class Timer:
         
     
 class World:
+    worlds = []
     GRAV = 9.81
     
     
     def __init__(self, dimensions=(20, 15), title="Pernaci Engine"):
+        self.worlds.append(self)
         pygame.init()
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((800, 600))
@@ -35,6 +37,8 @@ class World:
         self.PTM = ((self.screen.get_width() / dimensions[0]), (self.screen.get_height() / dimensions[1]))
         
         self.entities = []
+        
+        self.possibleCollisions = []
         
         self.timer = Timer()
         
@@ -62,6 +66,41 @@ class World:
                     if name == "airdrag":
                         thread.daemon = True
                         thread.start() 
+                        
+    
+    def setCollision(self, entity1, entity2):
+        self.possibleCollisions.append([entity1, entity2])
+        
+    
+    def checkCollisions(self):
+        while True:
+            for entity1, entity2 in self.possibleCollisions:
+                # Converti le posizioni in pixel una sola volta
+                e1_x = entity1.position[0] * self.PTM[0]
+                e1_y = entity1.position[1] * self.PTM[1]
+                e2_x = entity2.position[0] * self.PTM[0]
+                e2_y = entity2.position[1] * self.PTM[1]
+                
+                # Calcola i bordi delle hitbox
+                e1_left = e1_x
+                e1_right = e1_x + (entity1.dimensions[0] * self.PTM[0])
+                e1_top = e1_y
+                e1_bottom = e1_y + (entity1.dimensions[1] * self.PTM[1])
+                
+                e2_left = e2_x
+                e2_right = e2_x + (entity2.dimensions[0] * self.PTM[0])
+                e2_top = e2_y
+                e2_bottom = e2_y + (entity2.dimensions[1] * self.PTM[1])
+                
+                # Controlla collisione
+                if (e1_right >= e2_left and 
+                    e1_left <= e2_right and 
+                    e1_bottom >= e2_top and 
+                    e1_top <= e2_bottom):
+                    print("Collision detected!")
+                    # Gestisci la collisione
+                    self.handleCollision(entity1, entity2)
+            time.sleep(0.016)  # 60 FPS check
 
 
     def render(self):
@@ -74,7 +113,12 @@ class World:
             else:
                 pygame.draw.rect(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0] * self.PTM[0], entity.dimensions[1] * self.PTM[1]))
                 
+                
     def start(self):
+        self.collisionChecker = threading.Thread(target=self.checkCollisions)
+        self.collisionChecker.daemon = True
+        self.collisionChecker.start()
+        
         running = True
         while running:
             for event in pygame.event.get():
@@ -108,31 +152,22 @@ class Entity:
     def __init__(self, topology="cube", dimensions=(1,1,1), mass=1, drag_coefficient=0.1, position=(10, 10)):
         self.topology = topology
         self.dimensions = dimensions
+
+        self.mass = mass
+        self.weightForce = self.mass * World.GRAV
+        self.volume = getVolume(self.topology, self.dimensions)
+        self.density = self.mass / self.volume
         
-        if self.topology == "plane":
-            self.mass = None
-            self.weightForce = None
-            self.volume = None
-            self.density = None
-            self.velX = None
-            self.velY = None
-            self.direction = None
-            self.drag_coefficient = None
-            self.trasversal_area = None
-        else:
-            self.mass = mass
-            self.weightForce = self.mass * World.GRAV
-            self.volume = getVolume(self.topology, self.dimensions)
-            self.density = self.mass / self.volume
-            self.velX = 0
-            self.velY = 0   
-            self.direction = math.atan2(self.velY, self.velX)
-            self.drag_coefficient = drag_coefficient
-            self.trasversal_area = getArea(self.topology, self.dimensions)
+        self.velX = 0
+        self.velY = 0   
+        self.direction = math.atan2(self.velY, self.velX)
+        
+        self.drag_coefficient = drag_coefficient
+        self.trasversal_area = getArea(self.topology, self.dimensions)
             
         self.position = position 
         self.forces = []
-             
+        
         self.threads = []
         
         
@@ -210,9 +245,6 @@ class Force:
     
     
 def getArea(topology, dimensions):
-    if topology == "plane":
-        return
-        
     if topology == "cube":
         return dimensions[0] * dimensions[1]
     elif topology == "parallelepiped":
@@ -224,10 +256,7 @@ def getArea(topology, dimensions):
         return 0
         
 def getVolume(topology, dimensions):
-    if topology == "plane":
-        return
-        
-    if topology == "cube" or topology == "parallelepiped":
+    if topology == "cube" or topology == "parallelepiped" or topology == "plane":
         return (dimensions[0] * dimensions[2]) * dimensions[1]
     elif topology == "sphere":
         return (4/3) * math.pi * dimensions[2]**3
