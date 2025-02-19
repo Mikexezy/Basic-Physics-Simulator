@@ -1,13 +1,13 @@
 from coreV2 import *
 
-mike = Entity("cube", dimensions=(1, 1, 1), position=(2, 1))
-
 world = World(dimensions=(75, 100))
+
+plane = Entity("plane", dimensions=(75, 10, 1), position=(0, 90))
+mike = Entity("cube", dimensions=(5, 5, 5), position=(10, 10), mass=10)
+world.addEntity(plane)
 world.addEntity(mike)
+
 world.setGravity(True)
 world.setAirDrag(True)
-
-newForce = Force(magnitude=5, direction=0, name="newForce", duration=1)
-mike.addForce(newForce)
 
 world.start()

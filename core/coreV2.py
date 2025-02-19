@@ -5,7 +5,7 @@ import math
 
 #TODO: rifare tutto con più ordine
 
-# topology - "cube", "parallelepiped", "sphere"
+# topology - "cube", "parallelepiped", "sphere", "plane"
 
 class Timer:
     def __init__(self):
@@ -69,6 +69,8 @@ class World:
         for entity in self.entities:
             if entity.topology == "sphere":
                 pygame.draw.circle(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1]), entity.dimensions[2])
+            elif entity.topology == "plane":
+                pygame.draw.rect(self.screen, (255, 255, 255), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0] * self.PTM[0], entity.dimensions[1] * self.PTM[1]))
             else:
                 pygame.draw.rect(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0] * self.PTM[0], entity.dimensions[1] * self.PTM[1]))
                 
@@ -105,24 +107,32 @@ class Entity:
     
     def __init__(self, topology="cube", dimensions=(1,1,1), mass=1, drag_coefficient=0.1, position=(10, 10)):
         self.topology = topology
-        
-        self.mass = mass
-        self.weightForce = self.mass * World.GRAV
-        
         self.dimensions = dimensions
-        self.volume = getVolume(self.topology, self.dimensions)
-        self.density = self.mass / self.volume
         
-        self.position = position     
-        self.velX = 0
-        self.velY = 0   
-        self.direction = math.atan2(self.velY, self.velX)
-        
-        self.drag_coefficient = drag_coefficient
-        self.trasversal_area = getArea(self.topology, self.dimensions)
-        
+        if self.topology == "plane":
+            self.mass = None
+            self.weightForce = None
+            self.volume = None
+            self.density = None
+            self.velX = None
+            self.velY = None
+            self.direction = None
+            self.drag_coefficient = None
+            self.trasversal_area = None
+        else:
+            self.mass = mass
+            self.weightForce = self.mass * World.GRAV
+            self.volume = getVolume(self.topology, self.dimensions)
+            self.density = self.mass / self.volume
+            self.velX = 0
+            self.velY = 0   
+            self.direction = math.atan2(self.velY, self.velX)
+            self.drag_coefficient = drag_coefficient
+            self.trasversal_area = getArea(self.topology, self.dimensions)
+            
+        self.position = position 
         self.forces = []
-        
+             
         self.threads = []
         
         
@@ -135,12 +145,14 @@ class Entity:
         self.forces.append(force)
             
     def calculateForce(self, world):
+        if self.topology == "plane":
+            return
+        
         # Calcola la forza totale
         total_fx = 0
         total_fy = 0
         
         for force in self.forces:
-            print(time.time() - world.timer.first_time)
             if (time.time() - world.timer.first_time) > force.duration:
                 self.forces.remove(force)
                 continue
@@ -198,6 +210,9 @@ class Force:
     
     
 def getArea(topology, dimensions):
+    if topology == "plane":
+        return
+        
     if topology == "cube":
         return dimensions[0] * dimensions[1]
     elif topology == "parallelepiped":
@@ -209,6 +224,9 @@ def getArea(topology, dimensions):
         return 0
         
 def getVolume(topology, dimensions):
+    if topology == "plane":
+        return
+        
     if topology == "cube" or topology == "parallelepiped":
         return (dimensions[0] * dimensions[2]) * dimensions[1]
     elif topology == "sphere":
@@ -218,6 +236,9 @@ def getVolume(topology, dimensions):
         return 0
     
 def calculateAirDrag(entity):
+    if entity.topology == "plane":
+        return
+    
     while True:
         if entity.velX == 0 and entity.velY == 0:
             continue
