@@ -68,50 +68,184 @@ class World:
                         thread.start() 
                         
     
-    def setCollision(self, entity1, entity2):
-        self.possibleCollisions.append([entity1, entity2])
+    def setCollision(self, entity1, entity2, name="collision"):
+        self.possibleCollisions.append([entity1, entity2, name])
         
     
     def checkCollisions(self):
         while True:
-            for entity1, entity2 in self.possibleCollisions:
-                # Converti le posizioni in pixel una sola volta
-                e1_x = entity1.position[0] * self.PTM[0]
-                e1_y = entity1.position[1] * self.PTM[1]
-                e2_x = entity2.position[0] * self.PTM[0]
-                e2_y = entity2.position[1] * self.PTM[1]
+            for entity1, entity2, name in self.possibleCollisions:
+                if entity2.topology == "plane":
+                    # Calcola il centro del piano
+                    plane_center_x = entity2.position[0] * self.PTM[0] + (entity2.dimensions[0] * self.PTM[0] / 2)
+                    plane_center_y = entity2.position[1] * self.PTM[1] + (entity2.dimensions[1] * self.PTM[1] / 2)
+                    
+                    # Calcola i vertici del piano ruotato
+                    width = entity2.dimensions[0] * self.PTM[0]
+                    height = entity2.dimensions[1] * self.PTM[1]
+                    angle = math.radians(entity2.alpha)
+                    
+                    plane_points = [
+                        (-width/2, -height/2),
+                        (width/2, -height/2),
+                        (width/2, height/2),
+                        (-width/2, height/2)
+                    ]
+                    
+                    # Ruota i punti del piano
+                    plane_vertices = []
+                    for x, y in plane_points:
+                        rx = x * math.cos(angle) - y * math.sin(angle)
+                        ry = x * math.sin(angle) + y * math.cos(angle)
+                        plane_vertices.append((rx + plane_center_x, ry + plane_center_y))
+                    
+                    # Ottieni i punti dell'entità
+                    e1_x = entity1.position[0] * self.PTM[0]
+                    e1_y = entity1.position[1] * self.PTM[1]
+                    e1_points = [
+                        (e1_x, e1_y),
+                        (e1_x + entity1.dimensions[0] * self.PTM[0], e1_y),
+                        (e1_x + entity1.dimensions[0] * self.PTM[0], e1_y + entity1.dimensions[1] * self.PTM[1]),
+                        (e1_x, e1_y + entity1.dimensions[1] * self.PTM[1])
+                    ]
+                    
+                    # Controlla collisione usando il Separating Axis Theorem (SAT)
+                    collision = self.checkSATCollision(e1_points, plane_vertices)
+                    
+                    # Se non c'è collisione, rimuovi le forze vincolari
+                    if not collision:
+                        entity1.forces = [f for f in entity1.forces if f.name != "vincular"]
+                        continue
+                    
+                    # Se c'è collisione, procedi con il calcolo della forza vincolare
+                    if collision:
+                        # Calcola la normale del piano (perpendicolare alla superficie)
+                        angle = math.radians(entity2.alpha)
+                        
+                        # Normale che punta verso l'alto del piano
+                        plane_normal = (
+                            math.sin(angle),
+                            math.cos(angle)  # Componente Y invertita
+                        )
+                        
+                        print(f"Debug - Plane normal: ({plane_normal[0]:.2f}, {plane_normal[1]:.2f})")
+                        
+                        entity1.forces = [f for f in entity1.forces if f.name != "vincular"]
+                        
+                        # Calcola la forza totale
+                        total_fx = 0
+                        total_fy = 0
+                        for force in entity1.forces:
+                            fx, fy = force.getComponents()
+                            total_fx += fx
+                            total_fy += fy
+                        
+                        # Proietta la forza sulla normale
+                        force_normal = (total_fx * plane_normal[0] + total_fy * plane_normal[1])
+                        
+                        if force_normal < 0:  # Solo se la forza sta spingendo verso il piano
+                            # Rimuovi forze vincolari precedenti
+                            
+                            # La forza vincolare deve essere nella direzione opposta alla normale
+                            vincular_magnitude = abs(force_normal)
+                            vincular_direction = -math.degrees(math.atan2(plane_normal[1], plane_normal[0]))
+                            
+                            vincular_force = Force(
+                                magnitude=vincular_magnitude,
+                                direction=-vincular_direction,
+                                name="vincular"
+                            )
+                            
+                            # Mantieni solo la componente tangenziale della velocità
+                            tangent = (-plane_normal[1], plane_normal[0])
+                            dot_product = entity1.velX * tangent[0] + entity1.velY * tangent[1]
+                            entity1.velX = dot_product * tangent[0] * 0.99  # Aggiungi un po' di attrito
+                            entity1.velY = dot_product * tangent[1] * 0.99
+                            
+                            entity1.addForce(vincular_force)
+                            
+                            print(f"Debug - Normal: ({plane_normal[0]:.2f}, {plane_normal[1]:.2f})")
+                            print(f"Debug - Vincular direction: {vincular_direction:.2f}°")
+                            print(f"Debug - Force magnitude: {vincular_magnitude:.2f}")
                 
-                # Calcola i bordi delle hitbox
-                e1_left = e1_x
-                e1_right = e1_x + (entity1.dimensions[0] * self.PTM[0])
-                e1_top = e1_y
-                e1_bottom = e1_y + (entity1.dimensions[1] * self.PTM[1])
+                time.sleep(0.016)
+
+    def checkSATCollision(self, vertices1, vertices2):
+        """Implementa il Separating Axis Theorem per la collision detection"""
+        for shape in [vertices1, vertices2]:
+            for i in range(len(shape)):
+                # Calcola la normale dell'edge
+                edge = (
+                    shape[(i + 1) % len(shape)][0] - shape[i][0],
+                    shape[(i + 1) % len(shape)][1] - shape[i][1]
+                )
+                normal = (-edge[1], edge[0])
                 
-                e2_left = e2_x
-                e2_right = e2_x + (entity2.dimensions[0] * self.PTM[0])
-                e2_top = e2_y
-                e2_bottom = e2_y + (entity2.dimensions[1] * self.PTM[1])
+                # Normalizza
+                length = math.sqrt(normal[0]**2 + normal[1]**2)
+                normal = (normal[0]/length, normal[1]/length)
                 
-                # Controlla collisione
-                if (e1_right >= e2_left and 
-                    e1_left <= e2_right and 
-                    e1_bottom >= e2_top and 
-                    e1_top <= e2_bottom):
-                    print("Collision detected!")
-                    # Gestisci la collisione
-                    self.handleCollision(entity1, entity2)
-            time.sleep(0.016)  # 60 FPS check
+                # Proietta tutti i punti sulla normale
+                min1, max1 = float('inf'), float('-inf')
+                min2, max2 = float('inf'), float('-inf')
+                
+                for vertex in vertices1:
+                    projection = vertex[0] * normal[0] + vertex[1] * normal[1]
+                    min1 = min(min1, projection)
+                    max1 = max(max1, projection)
+                
+                for vertex in vertices2:
+                    projection = vertex[0] * normal[0] + vertex[1] * normal[1]
+                    min2 = min(min2, projection)
+                    max2 = max(max2, projection)
+                
+                # Se c'è una separazione, non c'è collisione
+                if max1 < min2 or max2 < min1:
+                    return False
+        
+        return True
 
 
     def render(self):
         self.screen.fill((0, 0, 0))
         for entity in self.entities:
             if entity.topology == "sphere":
-                pygame.draw.circle(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1]), entity.dimensions[2])
+                pygame.draw.circle(self.screen, (255, 0, 0), 
+                    (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1]), 
+                    entity.dimensions[2])
             elif entity.topology == "plane":
-                pygame.draw.rect(self.screen, (255, 255, 255), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0] * self.PTM[0], entity.dimensions[1] * self.PTM[1]))
+                # Calcola il centro del rettangolo
+                center_x = entity.position[0] * self.PTM[0] + (entity.dimensions[0] * self.PTM[0] / 2)
+                center_y = entity.position[1] * self.PTM[1] + (entity.dimensions[1] * self.PTM[1] / 2)
+                
+                # Calcola i vertici del rettangolo non ruotato rispetto al centro
+                width = entity.dimensions[0] * self.PTM[0]
+                height = entity.dimensions[1] * self.PTM[1]
+                points = [
+                    (-width/2, -height/2),
+                    (width/2, -height/2),
+                    (width/2, height/2),
+                    (-width/2, height/2)
+                ]
+                
+                # Ruota i punti
+                angle = math.radians(entity.alpha)
+                rotated_points = []
+                for x, y in points:
+                    # Applica la rotazione
+                    rx = x * math.cos(angle) - y * math.sin(angle)
+                    ry = x * math.sin(angle) + y * math.cos(angle)
+                    # Trasla i punti al centro
+                    rotated_points.append((rx + center_x, ry + center_y))
+                
+                # Disegna il poligono ruotato
+                pygame.draw.polygon(self.screen, (255, 255, 255), rotated_points)
             else:
-                pygame.draw.rect(self.screen, (255, 0, 0), (entity.position[0] * self.PTM[0], entity.position[1] * self.PTM[1], entity.dimensions[0] * self.PTM[0], entity.dimensions[1] * self.PTM[1]))
+                pygame.draw.rect(self.screen, (255, 0, 0), 
+                    (entity.position[0] * self.PTM[0], 
+                     entity.position[1] * self.PTM[1], 
+                     entity.dimensions[0] * self.PTM[0], 
+                     entity.dimensions[1] * self.PTM[1]))
                 
                 
     def start(self):
@@ -149,7 +283,7 @@ class Entity:
     # dimensions = larghezza, altezza, lunghezza o raggio
     # position = x da sinistra, y dal basso
     
-    def __init__(self, topology="cube", dimensions=(1,1,1), mass=1, drag_coefficient=0.1, position=(10, 10)):
+    def __init__(self, topology="cube", dimensions=(1,1,1), mass=1, drag_coefficient=0.1, position=(10, 10), alpha=0):
         self.topology = topology
         self.dimensions = dimensions
 
@@ -160,6 +294,8 @@ class Entity:
         
         self.velX = 0
         self.velY = 0   
+        
+        self.alpha = alpha
         self.direction = math.atan2(self.velY, self.velX)
         
         self.drag_coefficient = drag_coefficient
